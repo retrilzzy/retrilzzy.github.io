@@ -169,6 +169,27 @@ export default function App() {
 
   return (
     <div className="min-h-screen atmosphere spotlight-scope flex flex-col items-center justify-center p-4 md:p-12 overflow-hidden relative">
+      <svg aria-hidden="true" className="absolute w-0 h-0 pointer-events-none">
+        <defs>
+          <filter id="grid-warp" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.012"
+              numOctaves={2}
+              seed={2}
+              result="noise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale={10}
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+      </svg>
+
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <motion.div
           initial={{ opacity: 0 }}

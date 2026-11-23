@@ -95,6 +95,12 @@
   );
   mask-repeat: no-repeat;
   pointer-events: none;
+
+  @media (prefers-reduced-motion: no-preference) {
+    filter: url(#grid-warp);
+    transform-origin: var(--mouse-x, 50%) var(--mouse-y, 50%);
+    transform: scale(1.04);
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
