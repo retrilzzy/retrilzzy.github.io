@@ -24,7 +24,7 @@
 }
 
 .link-hover {
-  @apply transition-all duration-500 hover:bg-white/5 hover:border-white/20 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)];
+  @apply transition-all duration-500 hover:bg-white/5 hover:border-white/20 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] active:bg-white/5 active:border-white/20 active:shadow-[0_0_30px_rgba(255,255,255,0.05)];
 }
 
 ::-webkit-scrollbar {
@@ -56,11 +56,58 @@
     radial-gradient(circle at 10% 80%, #0a0a0a 0%, transparent 50%);
 }
 
+@property --spotlight-inner {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --spotlight-outer {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 .bg-grid {
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 60px 60px;
+}
+
+.bg-grid-spotlight {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transition:
+    --spotlight-inner 0.25s ease-out,
+    --spotlight-outer 0.25s ease-out;
+  -webkit-mask-image: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    black var(--spotlight-inner, 0px),
+    transparent var(--spotlight-outer, 0px)
+  );
+  mask-image: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    black var(--spotlight-inner, 0px),
+    transparent var(--spotlight-outer, 0px)
+  );
+  mask-repeat: no-repeat;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .spotlight-scope:hover {
+    --spotlight-inner: 40px;
+    --spotlight-outer: 240px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid-spotlight {
+    transition: none !important;
+  }
 }
 
 .bg-dots {

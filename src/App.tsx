@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   motion,
   useMotionValue,
@@ -67,21 +67,72 @@ const cardVariants = {
 
 export default function App() {
   const shouldReduceMotion = useReducedMotion();
+  const isTouchingRef = useRef(false);
+  const spotlightLayerRef = useRef<HTMLDivElement>(null);
   const rawX = useMotionValue(0);
   const rawY = useMotionValue(0);
   const gridX = useSpring(rawX, { stiffness: 120, damping: 25, mass: 0.5 });
   const gridY = useSpring(rawY, { stiffness: 120, damping: 25, mass: 0.5 });
 
   useEffect(() => {
+    const spotlightEl = spotlightLayerRef.current;
+    if (!spotlightEl) return;
+
+    let rect = spotlightEl.getBoundingClientRect();
+    const resizeObserver = new ResizeObserver(() => {
+      rect = spotlightEl.getBoundingClientRect();
+    });
+    resizeObserver.observe(spotlightEl);
+
+    const handleMouseSpotlight = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || rect.width === 0 || rect.height === 0) {
+        return;
+      }
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      spotlightEl.style.setProperty("--mouse-x", `${x}%`);
+      spotlightEl.style.setProperty("--mouse-y", `${y}%`);
+    };
+
+    window.addEventListener("pointermove", handleMouseSpotlight, {
+      passive: true,
+    });
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("pointermove", handleMouseSpotlight);
+    };
+  }, []);
+
+  useEffect(() => {
     if (shouldReduceMotion) return;
 
     const maxOffset = 24;
-    const handlePointerMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return;
-      const nx = (e.clientX / window.innerWidth - 0.5) * 2;
-      const ny = (e.clientY / window.innerHeight - 0.5) * 2;
+    const clamp = (value: number, min: number, max: number) =>
+      Math.max(min, Math.min(max, value));
+
+    const updateFromPointer = (clientX: number, clientY: number) => {
+      const nx = (clientX / window.innerWidth - 0.5) * 2;
+      const ny = (clientY / window.innerHeight - 0.5) * 2;
       rawX.set(-nx * maxOffset);
       rawY.set(-ny * maxOffset);
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") return;
+      isTouchingRef.current = true;
+      updateFromPointer(e.clientX, e.clientY);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" && !isTouchingRef.current) return;
+      updateFromPointer(e.clientX, e.clientY);
+    };
+
+    const handlePointerEnd = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") return;
+      isTouchingRef.current = false;
+      rawX.set(0);
+      rawY.set(0);
     };
 
     const handlePointerLeave = () => {
@@ -89,18 +140,35 @@ export default function App() {
       rawY.set(0);
     };
 
-    window.addEventListener("pointermove", handlePointerMove, {
+    const handleDeviceOrientation = (e: DeviceOrientationEvent) => {
+      if (isTouchingRef.current || e.gamma === null || e.beta === null) return;
+      const nx = clamp(e.gamma / 30, -1, 1);
+      const ny = clamp((e.beta - 45) / 30, -1, 1);
+      rawX.set(-nx * maxOffset);
+      rawY.set(-ny * maxOffset);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerup", handlePointerEnd, { passive: true });
+    window.addEventListener("pointercancel", handlePointerEnd, { passive: true });
+    document.addEventListener("mouseleave", handlePointerLeave);
+    window.addEventListener("deviceorientation", handleDeviceOrientation, {
       passive: true,
     });
-    document.addEventListener("mouseleave", handlePointerLeave);
+
     return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
       document.removeEventListener("mouseleave", handlePointerLeave);
+      window.removeEventListener("deviceorientation", handleDeviceOrientation);
     };
   }, [shouldReduceMotion, rawX, rawY]);
 
   return (
-    <div className="min-h-screen atmosphere flex flex-col items-center justify-center p-4 md:p-12 overflow-hidden relative">
+    <div className="min-h-screen atmosphere spotlight-scope flex flex-col items-center justify-center p-4 md:p-12 overflow-hidden relative">
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <motion.div
           initial={{ opacity: 0 }}
@@ -108,7 +176,12 @@ export default function App() {
           transition={{ duration: 2 }}
           style={shouldReduceMotion ? undefined : { x: gridX, y: gridY }}
           className="absolute -inset-15 bg-grid"
-        />
+        >
+          <div
+            ref={spotlightLayerRef}
+            className="absolute inset-0 bg-grid-spotlight"
+          />
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}
@@ -182,17 +255,18 @@ export default function App() {
               target="_blank"
               rel="noopener noreferrer"
               variants={cardVariants}
-              className="glass p-5 md:p-7 rounded-3xl flex flex-col justify-between group link-hover relative overflow-hidden h-38 md:h-44"
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
+              className="glass p-5 md:p-7 rounded-3xl flex flex-col justify-between group link-hover relative overflow-hidden h-38 md:h-44 focus-visible:outline-2 focus-visible:outline-white/80 focus-visible:outline-offset-3"
             >
               <div className="flex justify-between items-start">
-                <div className="p-3 rounded-2xl bg-white/5 group-hover:bg-white/10 transition-colors">
+                <div className="p-3 rounded-2xl bg-white/5 group-hover:bg-white/10 group-active:bg-white/10 transition-colors">
                   {link.icon}
                 </div>
-                <ExternalLink className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0" />
+                <ExternalLink className="w-4 h-4 opacity-30 group-hover:opacity-100 group-active:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 group-active:translate-y-0" />
               </div>
 
               <div>
-                <span className="block text-[10px] uppercase tracking-[0.2em] text-muted group-hover:text-white/60 transition-colors mb-1 font-semibold">
+                <span className="block text-[10px] uppercase tracking-[0.2em] text-muted group-hover:text-white/60 group-active:text-white/60 transition-colors mb-1 font-semibold">
                   {link.name}
                 </span>
                 <span className="block text-xl md:text-2xl font-light tracking-tight truncate">
@@ -200,7 +274,7 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white/20 group-hover:w-full transition-all duration-500" />
+              <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white/20 group-hover:w-full group-active:w-full transition-all duration-500" />
             </motion.a>
           ))}
         </div>
