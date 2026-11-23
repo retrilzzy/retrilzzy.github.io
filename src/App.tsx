@@ -1,4 +1,10 @@
-import { motion } from "motion/react";
+import { useEffect } from "react";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+} from "motion/react";
 import { Github, MessageSquare, Mail, ExternalLink, Hash } from "lucide-react";
 
 const links = [
@@ -60,6 +66,39 @@ const cardVariants = {
 };
 
 export default function App() {
+  const shouldReduceMotion = useReducedMotion();
+  const rawX = useMotionValue(0);
+  const rawY = useMotionValue(0);
+  const gridX = useSpring(rawX, { stiffness: 120, damping: 25, mass: 0.5 });
+  const gridY = useSpring(rawY, { stiffness: 120, damping: 25, mass: 0.5 });
+
+  useEffect(() => {
+    if (shouldReduceMotion) return;
+
+    const maxOffset = 24;
+    const handlePointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      const nx = (e.clientX / window.innerWidth - 0.5) * 2;
+      const ny = (e.clientY / window.innerHeight - 0.5) * 2;
+      rawX.set(-nx * maxOffset);
+      rawY.set(-ny * maxOffset);
+    };
+
+    const handlePointerLeave = () => {
+      rawX.set(0);
+      rawY.set(0);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
+    document.addEventListener("mouseleave", handlePointerLeave);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("mouseleave", handlePointerLeave);
+    };
+  }, [shouldReduceMotion, rawX, rawY]);
+
   return (
     <div className="min-h-screen atmosphere flex flex-col items-center justify-center p-4 md:p-12 overflow-hidden relative">
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -67,7 +106,8 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.5 }}
           transition={{ duration: 2 }}
-          className="absolute inset-0 bg-grid"
+          style={shouldReduceMotion ? undefined : { x: gridX, y: gridY }}
+          className="absolute -inset-15 bg-grid"
         />
 
         <motion.div
